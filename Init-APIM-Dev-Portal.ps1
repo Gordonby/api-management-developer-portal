@@ -11,7 +11,6 @@
 $apimName = "ContosoTravel"
 $apimRg = "ContosoTravel"
 
-
 #Script variables (don't need to change these)
 $storageContainerName="devportal"
 
@@ -27,6 +26,28 @@ if ($managementAccess.Enabled == false) {
     Set-AzApiManagementTenantAccess -Context $apimContext -Enabled $True
     $managementAccess = Get-AzApiManagementTenantAccess -Context $apimContext
 }
+
+#Now managment Access is enabled, we need a SAS token
+$dateIn30=(Get-Date).AddDays(30).ToShortDateString()
+$expiry=([datetime]::ParseExact($dateIn30,"dd/MM/yyyy",[cultureinfo]::InvariantCulture))
+
+$dataToSign = $managementAccess.Id + "\n" + $expiry
+
+$hmacsha = New-Object System.Security.Cryptography.HMACSHA512
+$hmacsha.key = [Text.Encoding]::ASCII.GetBytes($managementAccess.PrimaryKey)
+$signature = $hmacsha.ComputeHash([Text.Encoding]::ASCII.GetBytes($dataToSign))
+$signature = [Convert]::ToBase64String($signature)
+
+$expiryString = $expiry.ToUniversalTime().ToString( "yyyy-MM-ddTHH:mm:ss.fffffffZ" )
+$apimSAS = "SharedAccessSignature uid=" + $managementAccess.Id + "&ex=" + $expiryString + "&sn=" + $signature
+
+#Test API call, with the APIM SAS token.
+#GET https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ApiManagement/service/{serviceName}/apis?api-version=2019-12-01
+$testURL="https://management.azure.com/subscriptions/$((Get-AzContext).Subscription.id)/resourceGroups/$apimRg/providers/Microsoft.ApiManagement/service/$apimName/apis?api-version=2019-12-01"
+$headers = @{
+    Authorization="$apimSAS"
+}
+Invoke-WebRequest -Method Get -Uri $testURL -Headers $headers -UseBasicParsing
 
 #Create the storage account
 $rand = Get-Random -Minimum -1000 -Maximum 9999
@@ -55,7 +76,7 @@ $storageSAS = New-AzStorageAccountSASToken -Context $storageContext -Service Blo
 #Portal Config file output
 $configdesignjson = (Get-Content ("./src/config.design.json") | ConvertFrom-Json)
 $configdesignjson.managementApiUrl = $configdesignjson.managementApiUrl.Replace("<service-name>",$apimName)
-$configdesignjson.managementApiAccessToken = $configdesignjson.managementApiAccessToken.Replace("...",$managementAccess.PrimaryKey)
+$configdesignjson.managementApiAccessToken = $apimSAS 
 $configdesignjson.blobStorageContainer=$storageContainerName
 $configdesignjson.blobStorageUrl=$storageAcc.PrimaryEndpoints.Blob + $storageSAS 
 $configdesignjson.backendUrl = $configdesignjson.backendUrl.Replace("<service-name>",$apimName)
@@ -64,7 +85,7 @@ $configdesignjson | ConvertTo-Json | Out-File "./src/config.design.json"
 #Config Publish Json
 $configpublishjson = (Get-Content ("./src/config.publish.json") | ConvertFrom-Json)
 $configpublishjson.managementApiUrl = $configpublishjson.managementApiUrl.Replace("<service-name>",$apimName)
-$configpublishjson.managementApiAccessToken = $configpublishjson.managementApiAccessToken.Replace("...",$managementAccess.PrimaryKey)
+$configpublishjson.managementApiAccessToken = $apimSAS 
 $configpublishjson.blobStorageContainer=$storageContainerName
 $configpublishjson.blobStorageConnectionString=$storageConnectionString
 $configpublishjson | ConvertTo-Json | Out-File "./src/config.publish.json"
