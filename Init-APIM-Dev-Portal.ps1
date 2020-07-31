@@ -12,7 +12,7 @@ $apimName = "ContosoTravel"
 $apimRg = "ContosoTravel"
 
 #Script variables (you don't need to change these)
-$storageAccountName="contosotravel9452" #only change this if you've got a storage account created already, the script will otherwise generate you one
+$storageAccountName="" #only change this if you've got a storage account created already, the script will otherwise generate you one
 $storageContainerName="devportal"
 
 #lets clone the repo and jump in
