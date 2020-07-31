@@ -12,7 +12,7 @@ $apimName = "ContosoTravel"
 $apimRg = "ContosoTravel"
 
 #Script variables (you don't need to change these)
-$storageAccountName="" #only change this if you've got a storage account created already, the script will otherwise generate you one
+$storageAccountName="contosotravel9452" #only change this if you've got a storage account created already, the script will otherwise generate you one
 $storageContainerName="devportal"
 
 #lets clone the repo and jump in
@@ -158,12 +158,26 @@ For ($i=0; $i -lt $generatebat.Length; $i++) {
 $generatebat | Out-File "./scripts/generate.bat" -Encoding "UTF8"
 
 #start the generation
-Start-Process "./scripts/generate.bat"
+Start-Process "./scripts/generate.bat" -Wait
 
 #Run the portal
-npm start
+#npm start
 
 #The following command will translate them into static files 
 #and place the output in the ./dist/website directory:
 npm run publish
 
+
+#using azcopy to publish
+$azcopyargs = @("copy", 
+                "$(get-location)dist\website\", 
+                $($storageAcc.PrimaryEndpoints.Blob + "`$web" + $storageSAS), 
+                "--from-to=LocalBlob",
+                "--blob-type Detect ",
+                "--follow-symlinks"
+                "--put-md5 ",
+                "--follow-symlinks ",
+                "–recursive ")
+$azcopypath = "C:\Program Files (x86)\Microsoft SDKs\Azure\AzCopy\azcopy"
+#start-process -FilePath  -ArgumentList $azcopyargs -Wait
+Write-host $azcopypath $($azcopyargs -join " ")
