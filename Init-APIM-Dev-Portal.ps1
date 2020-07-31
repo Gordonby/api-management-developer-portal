@@ -12,7 +12,7 @@ $apimName = "ContosoTravel"
 $apimRg = "ContosoTravel"
 
 #Script variables (you don't need to change these)
-$storageAccountName="" #only change this if you've got a storage account created already, the script will otherwise generate you one
+$storageAccountName="contosotravel9452" #only change this if you've got a storage account created already, the script will otherwise generate you one
 $storageContainerName="devportal"
 
 #lets clone the repo and jump in
@@ -112,6 +112,11 @@ $headers.Add("x-ms-blob-type","BlockBlob")
 $storageTestResult = Invoke-WebRequest -uri $uri -Method Put -Body $file -ContentType "image/png"  -Headers $headers
 Write-Host "Test image upload using Storage SAS: " + $storageTestResult.StatusCode + " " + $storageTestResult.StatusDescription
 
+#Flipping text output stuff on windows.  For PowerShell 5.1 you need to do this, rather than use out-file
+$Utf8NoBomEncoding = New-Object System.Text.UTF8Encoding $False
+$basepath= Get-Location
+#[System.IO.File]::WriteAllLines($MyPathOut, $MyFile, $Utf8NoBomEncoding)
+
 #Portal Config file output
 $configdesignjson = (Get-Content ("./src/config.design.json") | ConvertFrom-Json)
 $configdesignjson.managementApiUrl = $configdesignjson.managementApiUrl.Replace("<service-name>",$apimName)
@@ -119,7 +124,9 @@ $configdesignjson.managementApiAccessToken = $apimSAS
 $configdesignjson.blobStorageContainer=$storageContainerName
 $configdesignjson.blobStorageUrl=$storageAcc.PrimaryEndpoints.Blob + $storageSAS 
 $configdesignjson.backendUrl = $configdesignjson.backendUrl.Replace("<service-name>",$apimName)
-$configdesignjson | ConvertTo-Json | % { [System.Text.RegularExpressions.Regex]::Unescape($_) } | Out-File "./src/config.design.json" -Encoding "UTF8"
+$configdesignjsonout = $configdesignjson | ConvertTo-Json | % { [System.Text.RegularExpressions.Regex]::Unescape($_) } 
+[System.IO.File]::WriteAllLines("$basepath\src\config.design.json", $configdesignjsonout, $Utf8NoBomEncoding)
+
 
 #Config Publish Json
 $configpublishjson = (Get-Content ("./src/config.publish.json") | ConvertFrom-Json)
@@ -127,14 +134,18 @@ $configpublishjson.managementApiUrl = $configpublishjson.managementApiUrl.Replac
 $configpublishjson.managementApiAccessToken = $apimSAS 
 $configpublishjson.blobStorageContainer=$storageContainerName
 $configpublishjson.blobStorageConnectionString=$storageConnectionString
-$configpublishjson | ConvertTo-Json | % { [System.Text.RegularExpressions.Regex]::Unescape($_) } | Out-File "./src/config.publish.json" -Encoding "UTF8"
+$configpublishjson | ConvertTo-Json | % { [System.Text.RegularExpressions.Regex]::Unescape($_) } 
+$configpublishjsonout = $configdesignjson | ConvertTo-Json | % { [System.Text.RegularExpressions.Regex]::Unescape($_) } 
+[System.IO.File]::WriteAllLines("$basepath\src\config.publish.json", $configpublishjsonout, $Utf8NoBomEncoding)
+
 
 #Config runtime json
 $configruntimejson = (Get-Content ("./src/config.runtime.json") | ConvertFrom-Json)
 $configruntimejson.managementApiUrl = $configruntimejson.managementApiUrl.Replace("<service-name>",$apimName)
 $configruntimejson.backendUrl = $configruntimejson.backendUrl.Replace("<service-name>",$apimName)
-$configruntimejson.proxyHostnames = $configruntimejson.proxyHostnames.Replace("<service-name>",$apimName)
-$configruntimejson | ConvertTo-Json | % { [System.Text.RegularExpressions.Regex]::Unescape($_) } | Out-File "./src/config.runtime.json"  -Encoding "UTF8"
+$configruntimejson | ConvertTo-Json | % { [System.Text.RegularExpressions.Regex]::Unescape($_) } 
+$configruntimejsonout = $configdesignjson | ConvertTo-Json | % { [System.Text.RegularExpressions.Regex]::Unescape($_) } 
+[System.IO.File]::WriteAllLines("$basepath\src\config.runtime.json", $configruntimejsonout, $Utf8NoBomEncoding)
 
 #generate.bat
 $generatebat = Get-Content ("./scripts/generate.bat")
