@@ -15,8 +15,8 @@
 #8. Copy the files from dist/website to your storage accounts $web folder
 
 #User Variables (change these)
-$apimName = "yanambia-apim"
-$apimRg = "yanambia-apim"
+$apimName = "contosotravel"
+$apimRg = "contosotravel"
 
 #Script variables (you don't need to change these)
 $storageAccountName="" #only change this if you've got a storage account created already, the script will otherwise generate you one
