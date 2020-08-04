@@ -26,10 +26,10 @@ $storageContainerName="content"
 $ErrorActionPreference = "Stop"
 
 #lets clone the repo and jump in
-git clone https://github.com/Azure/api-management-developer-portal.git
-cd api-management-developer-portal
-git checkout 2.4.1 #current release tag.  see https://github.com/Azure/api-management-developer-portal/releases
-npm install
+#git clone https://github.com/Azure/api-management-developer-portal.git
+#cd api-management-developer-portal
+#git checkout 2.4.1 #current release tag.  see https://github.com/Azure/api-management-developer-portal/releases
+#npm install
 
 #lets check the RG out (we'll need the location for laters)
 $rg = Get-AzResourceGroup $apimRg
