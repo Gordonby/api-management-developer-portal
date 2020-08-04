@@ -4,26 +4,32 @@
 #1. Already have APIM deployed
 #2. Do not have a Self Hosted Dev Portal already
 #--------------------------
-#Caveat.
-#This script is Windows PowerShell.  It's not using AZ, and as such it's not idempotent
+#Instructions
+#1. Clone the repo.               : git clone https://github.com/Azure/api-management-developer-portal.git
+#2. Cd into the repo dir          : cd api-management-developer-portal
+#3. Check out the latest release  : git checkout 2.4.1
+#4. Install package dependencies  : npm install
+#5. RUN THIS SCRIPT
+#6. Run the Generate.bat command in cmd when prompted.
+#7. Run the publish command       : npm run publish
+#8. Copy the files from dist/website to your storage accounts $web folder
 
 #User Variables (change these)
-$apimName = "contosotravel"
-$apimRg = "contosotravel"
+$apimName = "yanambia-apim"
+$apimRg = "yanambia-apim"
 
 #Script variables (you don't need to change these)
 $storageAccountName="" #only change this if you've got a storage account created already, the script will otherwise generate you one
-$storageContainerName="devportal"
+$storageContainerName="content"
 
+#Getting the script to stop on the first error
+$ErrorActionPreference = "Stop"
 
 #lets clone the repo and jump in
 git clone https://github.com/Azure/api-management-developer-portal.git
 cd api-management-developer-portal
-git checkout 10.11.12
+git checkout 2.4.1 #current release tag.  see https://github.com/Azure/api-management-developer-portal/releases
 npm install
-
-#Getting the script to stop on the first error
-$ErrorActionPreference = "Stop"
 
 #lets check the RG out (we'll need the location for laters)
 $rg = Get-AzResourceGroup $apimRg
@@ -67,7 +73,13 @@ Write-Host "Test API call using the APIM SAS: " + $req.StatusCode + $req.StatusD
 #Create the storage account
 if ($storageAccountName -eq "") {
     $rand = Get-Random -Minimum -1000 -Maximum 9999
-    $storageAcc = New-AzStorageAccount -ResourceGroupName $apimRg -Name "$apimName$rand".ToLower() -SkuName Standard_LRS -Location $rg.Location
+
+    $apimCleanName = $apimName -replace '[^a-zA-Z0-9]', ''
+    $storageAccountName = "$apimCleanName$rand".ToLower()
+
+    $storageAcc = New-AzStorageAccount -ResourceGroupName $apimRg -Name $storageAccountName -SkuName Standard_LRS -Location $rg.Location
+
+    Write-Output "Created storage account: $apimCleanName$rand"
 }
 else {
     $storageAcc = Get-AzStorageAccount -ResourceGroupName $apimRg -Name "$storageAccountName"
@@ -93,8 +105,7 @@ Set-AzStorageCORSRule -Context $storageContext -ServiceType Blob -CorsRules $Cor
 New-AzStorageContainer -Context $storageContext -Name $storageContainerName -Permission Off
 
 #Create a new storage SAS
-$dateIn30=(Get-Date).AddDays(30).ToShortDateString()
-$expiry=([datetime]::ParseExact($dateIn30,"dd/MM/yyyy",[cultureinfo]::InvariantCulture))
+$expiry=(Get-Date).AddDays(30)
 $storageSAS = New-AzStorageAccountSASToken -Context $storageContext -Service Blob -ResourceType Container,Object -ExpiryTime $expiry -Permission "racwdlup"
 
 #Test storageSAS actually can upload something (just a ranom image is being used)
@@ -153,17 +164,21 @@ For ($i=0; $i -lt $generatebat.Length; $i++) {
 }
 $generatebat | Out-File "./scripts/generate.bat" -Encoding "UTF8"
 
-#start the generation
-Start-Process "./scripts/generate.bat" -Wait
+#start the generation..
+#I'd run the whole thing for you, but i've found it hides the output
+#You want to make sure that you see the media files being uploaded, so whatever the error is.
+Write-Output "In cmd; change directory (cd) into the scripts directory and run 'generate.bat'"
+Start-Process "cmd" 
+
 
 #Run the portal
 #npm start
 
 #The following command will translate them into static files 
 #and place the output in the ./dist/website directory:
-npm run publish
+#npm run publish
 
 
 #using azcopy to publish
 #http://aka.ms/azcopy
-AzCopy /Source:$("$(get-location)dist\website\") /Dest:$($storageAcc.PrimaryEndpoints.Blob + "`$web") /DestKey:"$storageKey" /S /v:"uploadlog.txt" /Y 
+#AzCopy /Source:$("$(get-location)dist\website\") /Dest:$($storageAcc.PrimaryEndpoints.Blob + "`$web") /DestKey:"$storageKey" /S /v:"uploadlog.txt" /Y 
