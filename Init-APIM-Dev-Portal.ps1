@@ -1,6 +1,7 @@
 #APIM Dev Portal Quickstart
 #--------------------------
-#Wiki guide this base based from: (https://github.com/Azure/api-management-developer-portal/wiki/Self-hosting-the-portal)[https://github.com/Azure/api-management-developer-portal/wiki/Self-hosting-the-portal]
+#Wiki guide this base based from: https://github.com/Azure/api-management-developer-portal/wiki/Self-hosting-the-portal
+#This Windows PowerShell script automates almost all of the steps.
 #--------------------------
 #This script is useful for users who
 #1. Already have APIM deployed
