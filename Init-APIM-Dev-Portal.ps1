@@ -5,21 +5,25 @@
 #2. Do not have a Self Hosted Dev Portal already
 #--------------------------
 #Caveat.
-#This script is PowerShell.  It's not using AZ, and as such it's not idempotent
+#This script is Windows PowerShell.  It's not using AZ, and as such it's not idempotent
 
 #User Variables (change these)
-$apimName = "ContosoTravel"
-$apimRg = "ContosoTravel"
+$apimName = "contosotravel"
+$apimRg = "contosotravel"
 
 #Script variables (you don't need to change these)
 $storageAccountName="" #only change this if you've got a storage account created already, the script will otherwise generate you one
 $storageContainerName="devportal"
+
 
 #lets clone the repo and jump in
 git clone https://github.com/Azure/api-management-developer-portal.git
 cd api-management-developer-portal
 git checkout 10.11.12
 npm install
+
+#Getting the script to stop on the first error
+$ErrorActionPreference = "Stop"
 
 #lets check the RG out (we'll need the location for laters)
 $rg = Get-AzResourceGroup $apimRg
@@ -31,7 +35,14 @@ $apimContext = New-AzApiManagementContext -ResourceGroupName $apimRg -ServiceNam
 $managementAccess = Get-AzApiManagementTenantAccess -Context $apimContext
 if ($managementAccess.Enabled -eq $false) {
     Set-AzApiManagementTenantAccess -Context $apimContext -Enabled $True
-    $managementAccess = Get-AzApiManagementTenantAccess -Context $apimContext
+
+    $managementAccess = $null
+    $managementAccess = Get-AzApiManagementTenantAccess -Context $apimContext 
+}
+
+if ($managementAccess.PrimaryKey -eq $null) {
+    #In testing, we've occassionally seen the PrimaryKey come back empty.  This could have been through querying the service too early before it was provisioned - but i'm putting in a specific check just in case.
+    throw 'Management Access Primary Key is not populated.  Caching issue?  Try refreshing/waiting'
 }
 
 #Now managment Access is enabled, we need a SAS token
@@ -41,21 +52,6 @@ $sasgenBody.Add("id",$managementAccess.Id)
 $sasgenBody.Add("key",$managementAccess.PrimaryKey)
 $sasResponse = Invoke-WebRequest -Method Post -Uri $sasgenUrl -Body $($sasgenBody | ConvertTo-Json)
 $apimSAS = "SharedAccessSignature " + $sasResponse.Content
-
-#No idea why this didn't work, the signature never came out right.  resorted to the exact same code, in c# in an azure function
-#$dateIn30=(Get-Date).AddDays(30).ToShortDateString()
-#$expiry=([datetime]::ParseExact($dateIn30,"dd/MM/yyyy",[cultureinfo]::InvariantCulture))
-#$expiryString = $expiry.ToString( "yyyy-MM-ddTHH:mm:ss.fffffff" ) #$expiry.ToUniversalTime().ToString( "yyyy-MM-ddTHH:mm:ss.fffffffZ" )
-
-#$dataToSign = $managementAccess.Id + "\n" + $expiryString
-
-#$hmacsha = New-Object System.Security.Cryptography.HMACSHA512
-#$hmacsha.key = [Text.Encoding]::UTF8.GetBytes($managementAccess.PrimaryKey)
-#$bytesToHash = [Text.Encoding]::UTF8.GetBytes($dataToSign)
-#$signature = $hmacsha.ComputeHash($bytesToHash)
-#$signature = [Convert]::ToBase64String($signature)
-
-#$apimSAS = "SharedAccessSignature uid=" + $managementAccess.Id + "&ex=" + $expiryString + "&sn=" + $signature
 
 #Test API call, with the APIM SAS token.
 $baseUrl= "https://$ApimName.management.azure-api.net"
@@ -169,15 +165,5 @@ npm run publish
 
 
 #using azcopy to publish
-$azcopyargs = @("copy", 
-                "$(get-location)dist\website\", 
-                $($storageAcc.PrimaryEndpoints.Blob + "`$web" + $storageSAS), 
-                "--from-to=LocalBlob",
-                "--blob-type Detect ",
-                "--follow-symlinks"
-                "--put-md5 ",
-                "--follow-symlinks ",
-                "–recursive ")
-$azcopypath = "C:\Program Files (x86)\Microsoft SDKs\Azure\AzCopy\azcopy"
-#start-process -FilePath  -ArgumentList $azcopyargs -Wait
-Write-host $azcopypath $($azcopyargs -join " ")
+#http://aka.ms/azcopy
+AzCopy /Source:$("$(get-location)dist\website\") /Dest:$($storageAcc.PrimaryEndpoints.Blob + "`$web") /DestKey:"$storageKey" /S /v:"uploadlog.txt" /Y 
